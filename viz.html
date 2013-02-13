@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<style>
+
+.node {
+  cursor: pointer;
+}
+
+.node circle {
+  fill: #fff;
+  stroke: steelblue;
+  stroke-width: 1.5px;
+}
+
+.node text {
+  font: 10px sans-serif;
+}
+
+.link {
+  fill: none;
+  stroke-width: 1.5px;
+}
+
+.menu {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+}
+</style>
+<link href="http://twitter.github.com/bootstrap/assets/css/bootstrap.css" rel="stylesheet">
+<body>
+
+<div class="menu">
+  <a href="#" class="btn" onclick="eval()">eval</a>
+</div>
+
+<script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script>
+notTrue = {"name":"@","children":[{"name":"#not","children":[{"name":"@","children":[{"name":"@","children":[{"name":"not"},{"name":"#t","children":[{"name":"#f","children":[{"name":"f"}]}]}]},{"name":"#t","children":[{"name":"#f","children":[{"name":"t"}]}]}]}]},{"name":"#a","children":[{"name":"#b","children":[{"name":"a"}]}]}]};
+
+omega = {"name":"@","children":[{"name":"#x","children":[{"name":"@","children":[{"name":"x"},{"name":"x"}]}]},{"name":"#y","children":[{"name":"@","children":[{"name":"y"},{"name":"y"}]}]}]};
+this.DATA = notTrue;
+</script>
+<script>
+
+var margin = {top: 20, right: 120, bottom: 20, left: 120},
+    width = 960 - margin.right - margin.left,
+    height = 800 - margin.top - margin.bottom;
+    
+var i = 0,
+    duration = 400,
+    root;
+
+var tree = d3.layout.tree()
+    .size([height, width]);
+
+var diagonal = d3.svg.diagonal()
+    .projection(function(d) { return [d.x, d.y]; });
+
+var svg = d3.select("body").append("svg")
+    .attr("width", width + margin.right + margin.left)
+    .attr("height", height + margin.top + margin.bottom)
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+function initData() {
+  flare = $.extend(true, {}, DATA);
+
+  root = flare;
+  root.x0 = width / 2;
+  root.y0 = 0;
+
+  function collapse(d) {
+    if (d.children) {
+      d._children = d.children;
+      d._children.forEach(collapse);
+      d.children = null;
+    }
+  }
+
+  //root.children.forEach(collapse);
+  update(root);
+}
+
+d3.json("http://google.com", initData);
+
+d3.select(self.frameElement).style("height", "800px");
+
+function update(source) {
+
+  // Compute the new tree layout.
+  var nodes = tree.nodes(root),
+      links = tree.links(nodes);
+
+  // Normalize for fixed-depth.
+  nodes.forEach(function(d) { d.y = d.depth * 40; });
+
+  // Update the nodes…
+  var node = svg.selectAll("g.node")
+      .data(nodes, function(d) { return d.id || (d.id = ++i); });
+
+  // Enter any new nodes at the parent's previous position.
+  var nodeEnter = node.enter().append("g")
+      .attr("class", "node")
+      .attr("transform", function(d) { return "translate(" + source.x0 + "," + source.y0 + ")"; })
+      .on("click", click);
+
+  nodeEnter.append("circle")
+      .attr("r", 1e-6)
+      .style("fill", function(d) { return d._children ? "lightsteelblue" : "#fff"; });
+
+  nodeEnter.append("text")
+      .attr("x", function(d) { return d.children || d._children ? -10 : 10; })
+      .attr("dy", ".35em")
+      .attr("text-anchor", function(d) { return d.children || d._children ? "end" : "start"; })
+      .text(function(d) { return d.name; })
+      .style("fill-opacity", 1e-6);
+
+  // Transition nodes to their new position.
+  var nodeUpdate = node.transition()
+      .duration(duration)
+      .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
+
+  nodeUpdate.select("circle")
+      .attr("r", 4.5)
+      .style("fill", function(d) { return d._children ? "lightsteelblue" : d.marked ? d.marked : "#fff"; });
+
+  nodeUpdate.select("text")
+      .text(function(d) { return d.name; })
+      .style("fill-opacity", 1);
+
+  // Transition exiting nodes to the parent's new position.
+  var nodeExit = node.exit().transition()
+      .duration(duration)
+      .attr("transform", function(d) { return "translate(" + source.x + "," + source.y + ")"; })
+      .remove();
+
+  nodeExit.select("circle")
+      .attr("r", 1e-6);
+
+  nodeExit.select("text")
+      .style("fill-opacity", 1e-6);
+
+  // Update the links…
+  var link = svg.selectAll("path.link")
+      .data(links, function(d) { return d.target.id; });
+
+  // Enter any new links at the parent's previous position.
+  link.enter().insert("path", "g")
+      .attr("class", "link")
+      .attr("d", function(d) {
+        var o = {x: source.x0, y: source.y0};
+        return diagonal({source: o, target: o});
+      });
+
+  // Transition links to their new position.
+  link.transition()
+      .attr("stroke", function(d) {
+        return type(d.source) == 'app' &&
+               d.source.marked &&
+               !d.target.marked
+               ? "salmon" : "lightgray";
+      })
+      .duration(duration)
+      .attr("d", diagonal);
+
+  // Transition exiting nodes to the parent's new position.
+  link.exit().transition()
+      .duration(duration)
+      .attr("d", function(d) {
+        var o = {x: source.x, y: source.y};
+        return diagonal({source: o, target: o});
+      })
+      .remove();
+
+  // Stash the old positions for transition.
+  nodes.forEach(function(d) {
+    d.x0 = d.x;
+    d.y0 = d.y;
+  });
+}
+
+// Toggle children on click.
+function click(d) {
+  if (d.children) {
+    d._children = d.children;
+    d.children = null;
+  } else {
+    d.children = d._children;
+    d._children = null;
+  }
+  update(d);
+}
+
+// make deep extend safe for d3 nodes
+var oldExtend = $.extend;
+$.extend = function(){
+  var a2 = arguments[2];
+  if (arguments[0] === true && typeof a2 == 'object') {
+    a2.parent = null;
+    a2.id = 0;
+  }
+  return oldExtend.apply(this, arguments); 
+}
+
+function type(node) {
+  return node.name == "@" ? 'app' : node.name[0] == "#" ? 'abs' : 'var';
+}
+
+function isReducible(node) {
+  return type(node) == 'app' && type(node.children[0]) == 'abs';
+}
+
+function walk(node, fn, preorder) {
+  if (preorder && fn(node)) return;
+  if (node.children) {
+    node.children.forEach(function(n){walk(n, fn)});
+  }
+  if (!preorder) fn(node);
+}
+
+function replace(abs, sym, arg) {
+  walk(abs, function(n) {
+    if (n.children) {
+      
+      n.children = n.children.map(function(ch) {
+        var ret = ch;
+        if (ch.name == sym) {
+          ret = $.extend(true, {}, arg);
+          ret.id = ch.id;
+        }
+        return ret;
+      });
+    }
+  });
+}
+
+function markSyms(node, sym) {
+  walk(node, function(n) {
+    if (n.name == sym) {
+      n.marked = 'blue';
+    }
+  });
+}
+
+function reduce(node) {
+  // not an application onto an abs
+  if (!isReducible(node)) return false;
+
+  var abs = node.children[0],
+      sym = abs.name.substr(1),
+      arg = node.children[1];
+  
+
+  // remove operand
+  node.children.pop();
+
+  node.marked = 'red';
+  markSyms(abs, sym);
+  update(node);
+
+  setTimeout(function(){
+    // do substitution
+    replace(abs, sym, arg);
+    update(node);
+  }, duration * 1.25);
+
+  setTimeout(function(){
+
+    // pop off the app and abs nodes
+    if (node == root) {
+      root = abs.children[0];
+    } else {
+      var sibs = node.parent.children;
+      sibs[sibs.indexOf(node)] = abs.children[0];
+    }
+    update(node)
+  }, duration * 2.25);
+
+}
+
+function eval() {
+  walk(root, function(n){
+    if (isReducible(n)) {
+      reduce(n);
+      return true; // end walk
+    }
+  }, true);
+}
+
+</script>
