@@ -37,7 +37,7 @@
 <script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
 <script src="http://d3js.org/d3.v3.min.js"></script>
 <script>
-notTrue = {"name":"@","children":[{"name":"#not","children":[{"name":"@","children":[{"name":"@","children":[{"name":"not"},{"name":"#t","children":[{"name":"#f","children":[{"name":"f"}]}]}]},{"name":"#t","children":[{"name":"#f","children":[{"name":"t"}]}]}]}]},{"name":"#a","children":[{"name":"#b","children":[{"name":"a"}]}]}]};
+notTrue = {"name":"@","children":[{"name":"#not","children":[{"name":"@","children":[{"name":"@","children":[{"name":"not"},{"name":"#t","children":[{"name":"#f","children":[{"name":"f"}]}]}]},{"name":"#t","children":[{"name":"#f","children":[{"name":"t"}]}]}]}]},{"name":"#t","children":[{"name":"#f","children":[{"name":"t"}]}]}]};
 
 omega = {"name":"@","children":[{"name":"#x","children":[{"name":"@","children":[{"name":"x"},{"name":"x"}]}]},{"name":"#y","children":[{"name":"@","children":[{"name":"y"},{"name":"y"}]}]}]};
 this.DATA = notTrue;
@@ -83,7 +83,7 @@ function initData() {
   update(root);
 }
 
-d3.json("http://google.com", initData);
+initData();
 
 d3.select(self.frameElement).style("height", "800px");
 
@@ -111,9 +111,7 @@ function update(source) {
       .style("fill", function(d) { return d._children ? "lightsteelblue" : "#fff"; });
 
   nodeEnter.append("text")
-      .attr("x", function(d) { return d.children || d._children ? -10 : 10; })
       .attr("dy", ".35em")
-      .attr("text-anchor", function(d) { return d.children || d._children ? "end" : "start"; })
       .text(function(d) { return d.name; })
       .style("fill-opacity", 1e-6);
 
@@ -127,6 +125,8 @@ function update(source) {
       .style("fill", function(d) { return d._children ? "lightsteelblue" : d.marked ? d.marked : "#fff"; });
 
   nodeUpdate.select("text")
+      .attr("text-anchor", function(d) { return d.children || d._children ? "end" : "start"; })
+      .attr("x", function(d) { return d.children || d._children ? -10 : 10; })
       .text(function(d) { return d.name; })
       .style("fill-opacity", 1);
 
@@ -212,6 +212,10 @@ function isReducible(node) {
   return type(node) == 'app' && type(node.children[0]) == 'abs';
 }
 
+function absSym(node) {
+  return node.name.substr(1);
+}
+
 function walk(node, fn, preorder) {
   if (preorder && fn(node)) return;
   if (node.children) {
@@ -249,7 +253,7 @@ function reduce(node) {
   if (!isReducible(node)) return false;
 
   var abs = node.children[0],
-      sym = abs.name.substr(1),
+      sym = absSym(abs),
       arg = node.children[1];
   
 
@@ -257,6 +261,7 @@ function reduce(node) {
   node.children.pop();
 
   node.marked = 'red';
+  abs.marked = 'salmon';
   markSyms(abs, sym);
   update(node);
 

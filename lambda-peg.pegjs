@@ -1,8 +1,12 @@
 
-prim = term
-term = app / abs / vari / paren
-name = name:[a-zA-Z0-9]+ { return name.join(''); }
+lexp =  vari / abs / app
+
+name = n:[0-9]+ { return n.join(''); }
 vari = sym:name { return { "name": sym }; }
-abs = "#" sym:name "." body:term { return { "name": "#" + sym, "children": [body] }; }
-app = "(" func:term " " arg:term ")" { return { "name": "@", "children": [func, arg] }; }
-paren = "(" ab:abs ")" { return ab; }
+
+abs = "#." body:term { return { "name": "#", "children": [body] }; }
+
+app = "(" func:prim " " arg:prim ")" { return { "name": "@", "children": [func, arg] }; }
+
+
+parn = l:lexp
