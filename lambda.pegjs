@@ -6,6 +6,8 @@ vari = sym:name { return { "name": sym }; }
 
 abs = "#" body:lexp { return { "name": "#", "children": [body] }; }
 
-app = "(" func:lexp " " arg:lexp ")" { return { "name": "@", "children": [func, arg] }; }
+app = "(" func:lexp _ arg:lexp ")" { return { "name": "@", "children": [func, arg] }; }
 
 paren = "(" l:abs ")" { return l; }
+
+_ = [ \t\n\r]+

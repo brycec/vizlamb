@@ -42,7 +42,8 @@ parser = (function(){
         "vari": parse_vari,
         "abs": parse_abs,
         "app": parse_app,
-        "paren": parse_paren
+        "paren": parse_paren,
+        "_": parse__
       };
       
       if (startRule !== undefined) {
@@ -309,15 +310,7 @@ parser = (function(){
         if (result0 !== null) {
           result1 = parse_lexp();
           if (result1 !== null) {
-            if (input.charCodeAt(pos.offset) === 32) {
-              result2 = " ";
-              advance(pos, 1);
-            } else {
-              result2 = null;
-              if (reportFailures === 0) {
-                matchFailed("\" \"");
-              }
-            }
+            result2 = parse__();
             if (result2 !== null) {
               result3 = parse_lexp();
               if (result3 !== null) {
@@ -419,6 +412,50 @@ parser = (function(){
         }
         if (result0 === null) {
           pos = clone(pos0);
+        }
+        
+        cache[cacheKey] = {
+          nextPos: clone(pos),
+          result:  result0
+        };
+        return result0;
+      }
+      
+      function parse__() {
+        var cacheKey = "_@" + pos.offset;
+        var cachedResult = cache[cacheKey];
+        if (cachedResult) {
+          pos = clone(cachedResult.nextPos);
+          return cachedResult.result;
+        }
+        
+        var result0, result1;
+        
+        if (/^[ \t\n\r]/.test(input.charAt(pos.offset))) {
+          result1 = input.charAt(pos.offset);
+          advance(pos, 1);
+        } else {
+          result1 = null;
+          if (reportFailures === 0) {
+            matchFailed("[ \\t\\n\\r]");
+          }
+        }
+        if (result1 !== null) {
+          result0 = [];
+          while (result1 !== null) {
+            result0.push(result1);
+            if (/^[ \t\n\r]/.test(input.charAt(pos.offset))) {
+              result1 = input.charAt(pos.offset);
+              advance(pos, 1);
+            } else {
+              result1 = null;
+              if (reportFailures === 0) {
+                matchFailed("[ \\t\\n\\r]");
+              }
+            }
+          }
+        } else {
+          result0 = null;
         }
         
         cache[cacheKey] = {

@@ -39,9 +39,11 @@ body{
   <h1><a href="http://en.wikipedia.org/wiki/Lambda_calculus">λ</a> machine <small>as a <a href="http://d3js.org/">d3</a> tree, parsed with <a href="http://pegjs.majda.cz/">PEG</a></small></h1>
 </div>
 
-<form class="well form-inline" id="parser">
-    <textarea type="text" class="span10" rows="3"></textarea>
-  <input class="btn btn-large span2" type="submit" value="parse">
+<form class="well form-inline" id="parser" onsubmit="return false;">
+  <div class="control-group">
+    <textarea type="text" class="span10" rows="3" name="p"></textarea>
+    <input class="btn btn-large span2" type="submit" value="parse">
+  </div>
 </form>
 
 <div class="menu">
@@ -85,9 +87,10 @@ $(function($){
       var tree = parser.parse($('#parser textarea').val());
       global.DATA = tree;
       initData();
+      $('#alert').hide();
       console.log(tree);
     } catch (err) {
-        var alert = $('#alert')[0] || $('<div id="alert" class="alert alert-error">');
+        var alert = $($('#alert')[0] || $('<div id="alert" class="alert alert-error">'));
         alert.detach().text(err);
         $('#parser').append(alert);
     }
