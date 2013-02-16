@@ -45,7 +45,7 @@ body{
 </form>
 
 <div class="menu">
-  <a href="#" class="btn btn-large" onclick="eval()">reduce</a>
+  <a href="javascript:void 0" class="btn btn-large" onclick="eval()">reduce</a>
 </div>
 
 <svg></svg>
@@ -100,14 +100,15 @@ $(function($){
     "2 + 3": "((####((4 2) ((3 2) 1)) (##(2 (2 1)))) (##(2 (2 (2 1)))))",
     "Omega": "(#(1 1) #(1 1))", 
     "Not True": "(#((1 ##1) ##2) ##2)",
+    "Almost true": "#(##2 1)"
   }
 
   // parse initial tree
-  $('#parser textarea').val(samples['2 + 3']).submit();
+  $('#parser textarea').val(samples['Almost true']).submit();
 
   // render samples
   $.each(samples, function(name, code) {
-    $('#samples').append($('<dt><a href="#">'+name+'</a></dt><dd>'+code+'</dd>'));
+    $('#samples').append($('<dt><a href="javascript:void 0">'+name+'</a></dt><dd>'+code+'</dd>'));
   });
   $('#samples').on('click', 'dt a', function(e){
     var par = $(e.target).parent()
@@ -116,20 +117,6 @@ $(function($){
   })
 });
 </script>
-
-<script>
-// some pre-parsed trees
-bru  = {"name":"@","children":[{"name":"#","children":[{"name":"1"}]},{"name":"#","children":[{"name":"1"}]}]}
-
-omega = {"name":"@","children":[{"name":"#","children":[{"name":"@","children":[{"name":"1"},{"name":"1"}]}]},{"name":"#","children":[{"name":"@","children":[{"name":"1"},{"name":"1"}]}]}]}
-
-notTrue = {"name":"@","children":[{"name":"#","children":[{"name":"@","children":[{"name":"1"},{"name":"@","children":[{"name":"#","children":[{"name":"#","children":[{"name":"1"}]}]},{"name":"#","children":[{"name":"#","children":[{"name":"2"}]}]}]}]}]},{"name":"#","children":[{"name":"#","children":[{"name":"2"}]}]}]}
-
-twoPlusThree = {"name":"@","children":[{"name":"@","children":[{"name":"#","children":[{"name":"#","children":[{"name":"#","children":[{"name":"#","children":[{"name":"@","children":[{"name":"@","children":[{"name":"4"},{"name":"2"}]},{"name":"@","children":[{"name":"@","children":[{"name":"3"},{"name":"2"}]},{"name":"1"}]}]}]}]}]}]},{"name":"#","children":[{"name":"#","children":[{"name":"@","children":[{"name":"2"},{"name":"@","children":[{"name":"2"},{"name":"1"}]}]}]}]}]},{"name":"#","children":[{"name":"#","children":[{"name":"@","children":[{"name":"2"},{"name":"@","children":[{"name":"2"},{"name":"@","children":[{"name":"2"},{"name":"1"}]}]}]}]}]}]};
-
-this.DATA = omega;
-</script>
-
 
 <script>
 
@@ -171,8 +158,6 @@ function initData() {
   //root.children.forEach(collapse);
   update(root);
 }
-
-initData();
 
 d3.select(self.frameElement).style("height", "800px");
 
@@ -285,8 +270,7 @@ var oldExtend = $.extend;
 $.extend = function(){
   var a2 = arguments[2];
   if (arguments[0] === true && typeof a2 == 'object') {
-    a2.parent = null;
-    a2.id = 0;
+    a2.parent = a2.id = null;
   }
   return oldExtend.apply(this, arguments); 
 }
@@ -299,46 +283,54 @@ function isReducible(node) {
   return type(node) == 'app' && type(node.children[0]) == 'abs';
 }
 
-function walk(node, fn, postfn) {
-  if (postfn && fn(node)) return;
+// depth is scope depth or how many abstractions enclose the current node
+function walk(node, fn, depth) {
+  depth = depth || 0;
+  if (type(node) == 'abs') depth++;
+  if (fn(node, depth)) return;
   if (node.children) {
-    node.children.forEach(function(n){walk(n, fn, postfn)});
+    node.children.forEach(function(n){ walk(n, fn, depth); });
   }
-  if (!postfn) fn(node);
-  // the check allows passing true for only preorder 
-  if (typeof postfn == 'function') postfn(node);
 }
 
-function forMatchingVars(abs, fn) {
-  if (type(abs) != 'abs') return console.error('Vars match to an abs');
-
-  var depth = 0;
-  walk(abs, function(n) { // on the way down
-    if (type(n) == 'abs') {
-      depth++;
-    }
-    else if (type(n) == 'var' && depth == parseInt(n.name)) {
-      fn(n, n.parent.children.indexOf(n));
-    }
-  }, function(n) { // on the way up
-    if (type(n) == 'abs') {
-      depth--;
+// finds out of score vars on node and applies a delta
+function rescopeVars(node, delta) {
+  walk(node, function(n, depth) {
+    if (type(n) == 'var' && +n.name > depth) {
+      n.name = +n.name + delta;
     }
   });
 }
 
+// do for reach var that matches to abs
+function forMatchingVars(abs, fn) {
+  if (type(abs) != 'abs') return console.error('Vars match to an abs');
+
+  walk(abs, function(n, depth) {
+    if (type(n) == 'var' && depth == +n.name) {
+      fn(n, n.parent.children.indexOf(n), depth);
+    }
+  });
+}
+
+// replace vars matched to abs with arg
 function replace(abs, arg) {
   var depth = 0;
 
-  forMatchingVars(abs, function(n, i) {
+  forMatchingVars(abs, function(n, i, depth) {
     var argcopy = $.extend(true, {}, arg);
+
+    // delta is depth - 1 since we're losing an abstraction
+    rescopeVars(argcopy, depth - 1);
+
     // copying the id makes d3 behave slightly differently. good/bad?
     // argcopy.id = n.id;
+
     n.parent.children[i] = argcopy;
   });
 }
 
-function markSyms(abs) {
+function markVars(abs) {
   forMatchingVars(abs, function(n, i){
     n.marked = 'blue';
   });
@@ -357,12 +349,18 @@ function reduce(node) {
 
   node.marked = 'red';
   abs.marked = 'salmon';
-  markSyms(abs);
+
+  markVars(abs);
+
   update(node);
 
   setTimeout(function(){
+    // losing an abs, so decr the out of scope vars
+    rescopeVars(abs, -1);
+
     // do substitution
     replace(abs, arg);
+
     update(node);
   }, duration * 1.25);
 
@@ -385,7 +383,7 @@ function eval() {
     if (isReducible(n)) {
       return reduce(n);
     }
-  }, true);
+  });
 }
 
 </script>
