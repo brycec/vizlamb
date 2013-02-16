@@ -215,7 +215,8 @@ function update(source) {
       .attr("text-anchor", function(d) { return d.children || d._children ? "end" : "start"; })
       .attr("x", function(d) { return d.children || d._children ? -10 : 10; })
       .text(function(d) { return d.name; })
-      .style("fill-opacity", 1);
+      .style("fill-opacity", 1)
+      .style("font-size", function (d) { return d.children ? '2em' : '3em'; });
 
   // Transition exiting nodes to the parent's new position.
   var nodeExit = node.exit().transition()
