@@ -17,7 +17,7 @@ body{
 }
 
 .node text {
-  font: 10px sans-serif;
+  font: 14px sans-serif;
 }
 
 .link {
@@ -56,7 +56,7 @@ body{
 <small>
   <em>
     <p>
-      This a universal machine, using the simply typed lambda calculus, visualized as a tree with d3.js.
+      This is a universal machine, using the untyped lambda calculus, visualized as a tree with d3.js.
       # is an abstraction. @ is application. Numbers are variables.
     </p>
     <p>
@@ -203,7 +203,7 @@ function update(source) {
       .attr("x", function(d) { return d.children || d._children ? -10 : 10; })
       .text(function(d) { return d.name; })
       .style("fill-opacity", 1);
-
+     
   // Transition exiting nodes to the parent's new position.
   var nodeExit = node.exit().transition()
       .duration(duration)
