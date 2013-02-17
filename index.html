@@ -25,6 +25,16 @@ body{
   stroke-width: 1.5px;
 }
 
+.ref-link {
+  fill: none;
+  stroke-width: 1px;
+  stroke-dasharray: 6;
+}
+
+.node:hover .ref-link {
+  stroke: blue;
+}
+
 .menu {
   text-align: center;
 }
@@ -83,17 +93,17 @@ $(function($){
   $('#parser').on('submit', parseTree);
 
   function parseTree(e) {
+    var tree = {}
     try {
-      var tree = parser.parse($('#parser textarea').val());
-      global.DATA = tree;
-      initData();
+      tree = parser.parse($('#parser textarea').val());
       $('#alert').hide();
-      console.log(tree);
+      global.DATA = tree;
     } catch (err) {
         var alert = $($('#alert')[0] || $('<div id="alert" class="alert alert-error">'));
         alert.detach().text(err);
         $('#parser').append(alert);
     }
+    initData();
     return false;
   }
 
@@ -128,7 +138,7 @@ var margin = {top: 20, right: 120, bottom: 20, left: 120},
     height = 800 - margin.top - margin.bottom;
     
 var i = 0,
-    duration = 470,
+    duration = 420,
     root;
 
 var tree = d3.layout.tree()
@@ -136,6 +146,8 @@ var tree = d3.layout.tree()
 
 var diagonal = d3.svg.diagonal()
     .projection(function(d) { return [d.x, d.y]; });
+
+var diagonal2 = d3.svg.diagonal.radial();
 
 var svg = d3.select("svg")
     .attr("width", width + margin.right + margin.left)
@@ -150,19 +162,17 @@ function initData() {
   root.x0 = width / 2;
   root.y0 = 0;
 
-  function collapse(d) {
-    if (d.children) {
-      d._children = d.children;
-      d._children.forEach(collapse);
-      d.children = null;
-    }
-  }
-
   //root.children.forEach(collapse);
   update(root);
 }
 
-d3.select(self.frameElement).style("height", "800px");
+function expandAll(d) {
+  if (d._children) {
+    d.children = d._children;
+    d._children = null;
+  }
+  if (d.children) d.children.forEach(expandAll);
+}
 
 function update(source) {
 
@@ -180,8 +190,16 @@ function update(source) {
   // Enter any new nodes at the parent's previous position.
   var nodeEnter = node.enter().append("g")
       .attr("class", "node")
+      .attr("id", function(d) { return "d" + d.id; })
       .attr("transform", function(d) { return "translate(" + source.x0 + "," + source.y0 + ")"; })
       .on("click", click);
+
+  nodeEnter.append("path")
+      .attr("class", "ref-link")
+      .attr("d", function(d) {
+        var o = {x: 0, y: 0};
+        return diagonal2({source: o, target: o});
+      });
 
   nodeEnter.append("circle")
       .attr("r", 1e-6)
@@ -206,6 +224,21 @@ function update(source) {
       .attr("x", function(d) { return d.children || d._children ? -10 : 10; })
       .text(function(d) { return d.name; })
       .style("fill-opacity", 1);
+
+  // matching abstraction link
+  nodeUpdate.select('.ref-link')
+      .attr("transform", function(d) { return "translate(-" + d.x + ",-" + d.y + ")";   })
+      .attr("stroke", function(d) { return d.marked ? "red" : "lightgray"; })
+      .attr("d", function(d) {
+        var depth = +d.name, cur = d;
+        if (type(d) == "var") {
+          while (depth > 0 && cur.parent) {
+            cur = cur.parent;
+            if (type(cur) == 'abs') depth--;
+          }
+        }
+        return diagonal2({source: cur, target: d});
+      });
      
   // Transition exiting nodes to the parent's new position.
   var nodeExit = node.exit().transition()
@@ -221,6 +254,9 @@ function update(source) {
 
   nodeExit.select("text")
       .style("fill-opacity", 1e-6);
+
+  nodeExit.select(".ref-link")
+      .attr("d", function(d) { return diagonal2({source: d, target: d}) })
 
   // Update the links…
   var link = svg.selectAll("path.link")
@@ -290,13 +326,18 @@ function isReducible(node) {
 function walk(node, fn, depth) {
   depth = depth || 0;
   if (type(node) == 'abs') depth++;
-  if (fn(node, depth)) return;
+
+  // to break out of the walk
+  if (fn(node, depth)) return true;
+
   if (node.children) {
-    node.children.forEach(function(n){ walk(n, fn, depth); });
+    for (var n, i = 0; n = node.children[i++];) {
+      if (walk(n, fn, depth)) return true;
+    }
   }
 }
 
-// finds out of score vars on node and applies a delta
+// finds out of scope vars on node and applies a delta
 function rescopeVars(node, delta) {
   walk(node, function(n, depth) {
     if (type(n) == 'var' && +n.name > depth) {
@@ -305,9 +346,9 @@ function rescopeVars(node, delta) {
   });
 }
 
-// do for reach var that matches to abs
+// do for each var that matches to abs
 function forMatchingVars(abs, fn) {
-  if (type(abs) != 'abs') return console.error('Vars match to an abs');
+  //if (type(abs) != 'abs') return console.error('Vars match to an abs');
 
   walk(abs, function(n, depth) {
     if (type(n) == 'var' && depth == +n.name) {
@@ -338,7 +379,10 @@ function markVars(abs) {
   });
 }
 
+var reducing = false;
 function reduce(node) {
+  reducing = true;
+
   // not an application onto an abs
   if (!isReducible(node)) return false;
 
@@ -346,8 +390,6 @@ function reduce(node) {
       arg = node.children[1];
   
 
-  // remove operand
-  node.children.pop();
 
   node.marked = 'red';
   abs.marked = 'salmon';
@@ -357,13 +399,20 @@ function reduce(node) {
   update(node);
 
   setTimeout(function(){
+    // remove operand
+    node.children.pop();
+    update(node);
+    arg.marked = null;
+  }, duration * 1);
+
+  setTimeout(function(){
     // do substitution
     replace(abs, arg);
 
     // losing an abs, so decr the out of scope vars
     rescopeVars(abs, -1);
     update(node);
-  }, duration * 1.25);
+  }, duration * 2);
 
   setTimeout(function(){
 
@@ -375,11 +424,17 @@ function reduce(node) {
       sibs[sibs.indexOf(node)] = abs.children[0];
     }
     update(node)
-  }, duration * 2.25);
+
+    reducing = false;
+  }, duration * 3);
+
   return true;
 }
 
 function eval() {
+  if (reducing) return;
+
+  expandAll(root);
   walk(root, function(n){
     if (isReducible(n)) {
       return reduce(n);
