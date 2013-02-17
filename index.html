@@ -323,8 +323,7 @@ function replace(abs, arg) {
   forMatchingVars(abs, function(n, i, depth) {
     var argcopy = $.extend(true, {}, arg);
 
-    // delta is depth - 1 since we're losing an abstraction
-    rescopeVars(argcopy, depth - 1);
+    rescopeVars(argcopy, depth);
 
     // copying the id makes d3 behave slightly differently. good/bad?
     // argcopy.id = n.id;
@@ -358,12 +357,11 @@ function reduce(node) {
   update(node);
 
   setTimeout(function(){
-    // losing an abs, so decr the out of scope vars
-    rescopeVars(abs, -1);
-
     // do substitution
     replace(abs, arg);
 
+    // losing an abs, so decr the out of scope vars
+    rescopeVars(abs, -1);
     update(node);
   }, duration * 1.25);
 
