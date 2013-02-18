@@ -22,7 +22,7 @@ body{
 
 .link {
   fill: none;
-  stroke-width: 1.5px;
+  stroke-width: 2px;
 }
 
 .ref-link {
@@ -32,7 +32,7 @@ body{
 }
 
 .node:hover .ref-link {
-  stroke: blue;
+  stroke: slateblue;
 }
 
 .menu {
@@ -147,7 +147,7 @@ var tree = d3.layout.tree()
 var diagonal = d3.svg.diagonal()
     .projection(function(d) { return [d.x, d.y]; });
 
-var diagonal2 = d3.svg.diagonal.radial();
+var diagonal2 = d3.svg.diagonal();
 
 var svg = d3.select("svg")
     .attr("width", width + margin.right + margin.left)
@@ -161,8 +161,7 @@ function initData() {
   root = flare;
   root.x0 = width / 2;
   root.y0 = 0;
-
-  //root.children.forEach(collapse);
+  
   update(root);
 }
 
@@ -228,7 +227,7 @@ function update(source) {
   // matching abstraction link
   nodeUpdate.select('.ref-link')
       .attr("transform", function(d) { return "translate(-" + d.x + ",-" + d.y + ")";   })
-      .attr("stroke", function(d) { return d.marked ? "red" : "lightgray"; })
+      .attr("stroke", function(d) { return d.marked ? "indianred" : "lightgray"; })
       .attr("d", function(d) {
         var depth = +d.name, cur = d;
         if (type(d) == "var") {
@@ -392,7 +391,7 @@ function reduce(node) {
 
 
   node.marked = 'red';
-  abs.marked = 'salmon';
+  abs.marked = 'indianred';
 
   markVars(abs);
 
