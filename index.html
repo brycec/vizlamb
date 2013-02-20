@@ -336,11 +336,20 @@ function walk(node, fn, depth) {
   }
 }
 
+function matchingAbs(vari) {
+  var depth = +vari.name, cur = vari;
+  while (depth > 0 && cur.parent) {
+    cur = cur.parent;
+    if (type(cur) == 'abs') depth--;
+  }
+  return cur;
+}
+
 // finds out of scope vars on node and applies a delta
 function rescopeVars(node, delta) {
   walk(node, function(n, depth) {
     if (type(n) == 'var' && +n.name > depth) {
-      n.name = +n.name + delta;
+      n.name = "" + (+n.name + delta) ;
     }
   });
 }
@@ -357,7 +366,7 @@ function forMatchingVars(abs, fn) {
 }
 
 // replace vars matched to abs with arg
-function replace(abs, arg) {
+function replace(abs, arg, onReplace) {
   var depth = 0;
 
   forMatchingVars(abs, function(n, i, depth) {
@@ -366,15 +375,14 @@ function replace(abs, arg) {
     rescopeVars(argcopy, depth);
 
     // copying the id makes d3 behave slightly differently. good/bad?
-    // argcopy.id = n.id;
-
+    argcopy.id = n.id;
     n.parent.children[i] = argcopy;
   });
 }
-
+  
 function markVars(abs) {
   forMatchingVars(abs, function(n, i){
-    n.marked = 'blue';
+    n.marked = 'indianred';
   });
 }
 
@@ -390,42 +398,40 @@ function reduce(node) {
   
 
 
-  node.marked = 'red';
+  node.marked = 'indianred';
   abs.marked = 'indianred';
+
+  walk(arg, function(n) { n.marked = 'red'; });
 
   markVars(abs);
 
   update(node);
 
   setTimeout(function(){
-    // remove operand
-    node.children.pop();
+    // do substitution
+    replace(abs, arg, update);
+
     update(node);
-    arg.marked = null;
+    walk(abs, function(n) { n.marked = false; });
   }, duration * 1);
 
   setTimeout(function(){
-    // do substitution
-    replace(abs, arg);
 
     // losing an abs, so decr the out of scope vars
     rescopeVars(abs, -1);
-    update(node);
-  }, duration * 2);
-
-  setTimeout(function(){
-
+    
     // pop off the app and abs nodes
     if (node == root) {
       root = abs.children[0];
+      root.parent = null;
     } else {
       var sibs = node.parent.children;
       sibs[sibs.indexOf(node)] = abs.children[0];
     }
-    update(node)
+    update(abs.children[0])
 
     reducing = false;
-  }, duration * 3);
+  }, duration * 2);
 
   return true;
 }
