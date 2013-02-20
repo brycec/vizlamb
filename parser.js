@@ -224,7 +224,7 @@ parser = (function(){
         pos0 = clone(pos);
         result0 = parse_name();
         if (result0 !== null) {
-          result0 = (function(offset, line, column, sym) { return { "name": sym }; })(pos0.offset, pos0.line, pos0.column, result0);
+          result0 = (function(offset, line, column, sym) { return { "name": sym, "size": +sym }; })(pos0.offset, pos0.line, pos0.column, result0);
         }
         if (result0 === null) {
           pos = clone(pos0);

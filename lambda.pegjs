@@ -2,7 +2,7 @@
 lexp =  vari / abs / app / paren
 
 name = n:[0-9]+ { return n.join(''); }
-vari = sym:name { return { "name": sym }; }
+vari = sym:name { return { "name": sym, "size": +sym }; }
 
 abs = "#" body:lexp { return { "name": "#", "children": [body] }; }
 
