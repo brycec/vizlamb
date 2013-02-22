@@ -57,7 +57,7 @@ body{
 </form>
 
 <div class="menu">
-  <a href="javascript:void 0" class="btn btn-large" onclick="eval()">reduce</a>
+  <a href="javascript:void 0" class="btn btn-large" id="reduce">reduce</a>
 </div>
 
 <svg></svg>
@@ -86,16 +86,18 @@ body{
 
 <script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
 <script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="http://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.4.4/underscore-min.js"></script>
 <script src="parser.js"></script>
+<script src="arborist.js"></script>
 <script>
 var global = this;
 $(function($){
+  var parserBox = $('#parser textarea');
   $('#parser').on('submit', parseTree);
-
   function parseTree(e) {
     var tree = {}
     try {
-      tree = parser.parse($('#parser textarea').val());
+      tree = parser.parse(parserBox.val());
       $('#alert').hide();
       global.DATA = tree;
     } catch (err) {
@@ -106,6 +108,40 @@ $(function($){
     initData();
     return false;
   }
+
+  var reducing = false;
+  $('#reduce').on('click', function() {
+    if (reducing) return;
+    var reducing = true;
+    var app = _(root).findReducible(),
+        abs = app.children[0],
+        arg = app.children[1];
+    app.marked = abs.marked = 'indianred';
+    _(abs).forMatchingVars(function(n) {
+      n.marked = 'lightsteelblue';
+    });
+    _(arg).walk(function(n){n.marked = 'lightsteelblue'});
+
+    update(app);
+
+    setTimeout(function() {
+      _(abs).substitute(arg);
+      update(abs);
+    }, duration * 1.5);
+    
+    setTimeout(function() {
+      var result = _(app).popOff();
+      if (app == root) root = result;
+
+      _(abs).walk(function(n){n.marked = null});
+
+      update(app);
+
+      parserBox.val(_(root).brujin());
+    }, duration * 1.5 * 2);
+    reducing = false;
+  });
+
 
   // some sample expressions
 
@@ -190,8 +226,7 @@ function update(source) {
   var nodeEnter = node.enter().append("g")
       .attr("class", "node")
       .attr("id", function(d) { return "d" + d.id; })
-      .attr("transform", function(d) { return "translate(" + source.x0 + "," + source.y0 + ")"; })
-      .on("click", click);
+      .attr("transform", function(d) { return "translate(" + source.x0 + "," + source.y0 + ")"; });
 
   nodeEnter.append("path")
       .attr("class", "ref-link")
@@ -230,11 +265,8 @@ function update(source) {
       .attr("stroke", function(d) { return d.marked ? "indianred" : "lightgray"; })
       .attr("d", function(d) {
         var depth = +d.name, cur = d;
-        if (type(d) == "var") {
-          while (depth > 0 && cur.parent) {
-            cur = cur.parent;
-            if (type(cur) == 'abs') depth--;
-          }
+        if (_.type(d) == "var") {
+          cur = _.matchingAbs(d);
         }
         return diagonal2({source: cur, target: d});
       });
@@ -263,6 +295,7 @@ function update(source) {
 
   // Enter any new links at the parent's previous position.
   link.enter().insert("path", "g")
+      .attr("stroke", "lightgray")
       .attr("class", "link")
       .attr("d", function(d) {
         var o = {x: source.x0, y: source.y0};
@@ -271,7 +304,6 @@ function update(source) {
 
   // Transition links to their new position.
   link.transition()
-      .attr("stroke", "lightgray")
       .duration(duration)
       .attr("d", diagonal);
 
@@ -291,160 +323,5 @@ function update(source) {
   });
 }
 
-// Toggle children on click.
-function click(d) {
-  if (d.children) {
-    d._children = d.children;
-    d.children = null;
-  } else {
-    d.children = d._children;
-    d._children = null;
-  }
-  update(d);
-}
-
-// make deep extend safe for d3 nodes
-var oldExtend = $.extend;
-$.extend = function(){
-  var a2 = arguments[2];
-  if (arguments[0] === true && typeof a2 == 'object') {
-    a2.parent = a2.id = null;
-  }
-  return oldExtend.apply(this, arguments); 
-}
-
-function type(node) {
-  return node.name == "@" ? 'app' : node.name[0] == "#" ? 'abs' : 'var';
-}
-
-function isReducible(node) {
-  return type(node) == 'app' && type(node.children[0]) == 'abs';
-}
-
-// depth is scope depth or how many abstractions enclose the current node
-function walk(node, fn, depth) {
-  depth = depth || 0;
-  if (type(node) == 'abs') depth++;
-
-  // to break out of the walk
-  if (fn(node, depth)) return true;
-
-  if (node.children) {
-    for (var n, i = 0; n = node.children[i++];) {
-      if (walk(n, fn, depth)) return true;
-    }
-  }
-}
-
-function matchingAbs(vari) {
-  var depth = +vari.name, cur = vari;
-  while (depth > 0 && cur.parent) {
-    cur = cur.parent;
-    if (type(cur) == 'abs') depth--;
-  }
-  return cur;
-}
-
-// finds out of scope vars on node and applies a delta
-function rescopeVars(node, delta) {
-  walk(node, function(n, depth) {
-    if (type(n) == 'var' && +n.name > depth) {
-      n.name = "" + (+n.name + delta) ;
-    }
-  });
-}
-
-// do for each var that matches to abs
-function forMatchingVars(abs, fn) {
-  //if (type(abs) != 'abs') return console.error('Vars match to an abs');
-
-  walk(abs, function(n, depth) {
-    if (type(n) == 'var' && depth == +n.name) {
-      fn(n, n.parent.children.indexOf(n), depth);
-    }
-  });
-}
-
-// replace vars matched to abs with arg
-function replace(abs, arg, onReplace) {
-  var depth = 0;
-
-  forMatchingVars(abs, function(n, i, depth) {
-    var argcopy = $.extend(true, {}, arg);
-
-    rescopeVars(argcopy, depth);
-
-    // copying the id makes d3 behave slightly differently. good/bad?
-    argcopy.id = n.id;
-    n.parent.children[i] = argcopy;
-  });
-}
-  
-function markVars(abs) {
-  forMatchingVars(abs, function(n, i){
-    n.marked = 'indianred';
-  });
-}
-
-var reducing = false;
-function reduce(node) {
-  reducing = true;
-
-  // not an application onto an abs
-  if (!isReducible(node)) return false;
-
-  var abs = node.children[0],
-      arg = node.children[1];
-  
-
-
-  node.marked = 'indianred';
-  abs.marked = 'indianred';
-
-  walk(arg, function(n) { n.marked = 'red'; });
-
-  markVars(abs);
-
-  update(node);
-
-  setTimeout(function(){
-    // do substitution
-    replace(abs, arg, update);
-
-    update(node);
-    walk(abs, function(n) { n.marked = false; });
-  }, duration * 1);
-
-  setTimeout(function(){
-
-    // losing an abs, so decr the out of scope vars
-    rescopeVars(abs, -1);
-    
-    // pop off the app and abs nodes
-    if (node == root) {
-      root = abs.children[0];
-      root.parent = null;
-    } else {
-      var sibs = node.parent.children;
-      sibs[sibs.indexOf(node)] = abs.children[0];
-    }
-    update(abs.children[0])
-
-    reducing = false;
-  }, duration * 2);
-
-  return true;
-}
-
-function eval() {
-  if (reducing) return;
-
-  expandAll(root);
-  walk(root, function(n){
-    if (isReducible(n)) {
-      return reduce(n);
-    }
-  });
-}
 
 </script>
